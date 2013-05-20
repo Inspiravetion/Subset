@@ -24,33 +24,32 @@ makeHuggable = function(editor){
 		resize = false;
 		id = editor.container.id;
 		editorElem = editor.container;
-        ctrlElem   = document.getElementById(id.split('-')[0] + SUBSET_CONTROLS_ID_SUFFIX);
-        subElem    = document.getElementById(id.split('-')[0] + SUBSET_ID_SUFFIX);
+    ctrlElem   = document.getElementById(id.split('-')[0] + SUBSET_CONTROLS_ID_SUFFIX);
+    subElem    = document.getElementById(id.split('-')[0] + SUBSET_ID_SUFFIX);
 
-    	oldHeight = parseInt(editorElem.style.height);
-		newHeight = editor.getSession().getScreenLength()
-        	* editor.renderer.lineHeight;
+    oldHeight = parseInt(editorElem.style.height);
+		newHeight = editor.getSession().getScreenLength() * editor.renderer.lineHeight;
 
-    	oldWidth = parseInt(editorElem.style.width);
-        newWidth = (editor.getSession().getScreenWidth()
-            * editor.renderer.$textLayer.$characterSize.width)
-            + editor.renderer.$gutterLayer.gutterWidth + 10;
+  	oldWidth = parseInt(editorElem.style.width);
+    newWidth = (editor.getSession().getScreenWidth()
+      * editor.renderer.$textLayer.$characterSize.width)
+      + editor.renderer.$gutterLayer.gutterWidth + 10;
 
-        if(isNaN(oldHeight) || oldHeight != newHeight){
-	    	editorElem.style.height = newHeight + 'px';
-	    	resize = true;
+    if(isNaN(oldHeight) || oldHeight != newHeight){
+    	editorElem.style.height = newHeight + 'px';
+    	resize = true;
 		}
 
-        if(isNaN(oldWidth) || oldWidth != newWidth){
-            editorElem.style.width  = newWidth + 'px';
-            ctrlElem.style.width    = newWidth + 'px';
-            subElem.style.width     = newWidth + 'px';
-            resize = true;
-        }
+    if(isNaN(oldWidth) || oldWidth != newWidth){
+        editorElem.style.width  = newWidth + 'px';
+        ctrlElem.style.width    = newWidth + 'px';
+        subElem.style.width     = newWidth + 'px';
+        resize = true;
+    }
 
-        if(resize){
-        	editor.resize();
-        }
+    if(resize){
+    	editor.resize();
+    }
 	}
 	hug();
 	editor.renderer.$gutterLayer._eventRegistry.changeGutterWidth.push(hug);
@@ -58,9 +57,9 @@ makeHuggable = function(editor){
 };
 
 ///////////////////////
-// SubsetGuiRenderer //
+// SubsetRenderer //
 ///////////////////////
-var SUBSET_GROUP_ID_SUFFIX         = '-SG',
+var SUBSET_GROUP_ID_SUFFIX       = '-SG',
 	SUBSET_GROUP_HEADER_ID_SUFFIX  = '-SGH',
 	SUBSET_GROUP_CONTENT_ID_SUFFIX = '-SGC',
 	SUBSET_EDITOR_ID_SUFFIX        = '-SEDITOR',
@@ -69,36 +68,22 @@ var SUBSET_GROUP_ID_SUFFIX         = '-SG',
 	SUBSET_LAST_CLASS_SUFFIX       = '-last',
 	SUBSET_ID_SUFFIX               = '-S';
 
-SubsetGuiRenderer = function(){};
-	
-SubsetGuiRenderer.prototype.createSubsetGroupElement = function(subGroupObj) {
-	var subGroupElem, header, content;
-	subGroupElem = make(
-		'div', 
-		'subset-group',
-		subGroupObj.fileName + SUBSET_GROUP_ID_SUFFIX
-	);
+var SubsetRenderer = function(){};
 
-	header = make(
-		'div', 
-		'subset-group-header',
-		subGroupObj.fileName + SUBSET_GROUP_HEADER_ID_SUFFIX,
-		subGroupObj.fileName
-	);
+SubsetRenderer.prototype.hardRender = function(model){
+  var subsets, subsetElem;
 
-	content = make(
-		'div', 
-		'subset-group-content',
-		subGroupObj.fileName + SUBSET_GROUP_CONTENT_ID_SUFFIX
-	);
+  subsets = model.subsets;
+  for(var i = 0; i < subsets.length; i++){
+    this.RenderSubsetElement(
+      subsets[i],
+      false,
+      i     
+    );
+  }
+}
 
-	subGroupElem.appendChild(header);
-	subGroupElem.appendChild(content);
-
-	return subGroupElem;
-};	
-
-SubsetGuiRenderer.prototype.createSubsetElement = function(subObj, last, subNumber) {
+SubsetRenderer.prototype.RenderSubsetElement = function(subObj, last, subNumber) {
 	var subElem, buttonGroup, subsetEditor;
 	subElem = make(
 		'div',
@@ -125,10 +110,15 @@ SubsetGuiRenderer.prototype.createSubsetElement = function(subObj, last, subNumb
 	subElem.appendChild(buttonGroup);
 	subElem.appendChild(subsetEditor);
 
-	return subElem;
+  document.body.appendChild(subElem);
+
+  subObj.editor = this.createSubsetContent(
+    subNumber + '-' + subObj.fileName + SUBSET_EDITOR_ID_SUFFIX, 
+    subObj
+  );
 };
 
-SubsetGuiRenderer.prototype.createButtonGroup = function(groupClass, id, labels) {
+SubsetRenderer.prototype.createButtonGroup = function(groupClass, id, labels) {
 	var buttonGroup, tempButton;
 
 	buttonGroup = make(
@@ -148,7 +138,7 @@ SubsetGuiRenderer.prototype.createButtonGroup = function(groupClass, id, labels)
 	return buttonGroup;
 };
 
-SubsetGuiRenderer.prototype.createButton = function(label, id) {
+SubsetRenderer.prototype.createButton = function(label, id) {
 	var button;
 
 	button = make(
@@ -162,7 +152,7 @@ SubsetGuiRenderer.prototype.createButton = function(label, id) {
 	return button;
 };
 
-SubsetGuiRenderer.prototype.createSubsetContent = function(subElemId, subObj) {
+SubsetRenderer.prototype.createSubsetContent = function(subElemId, subObj) {
 	var editor;
 
 	editor = ace.edit(subElemId);
@@ -174,46 +164,15 @@ SubsetGuiRenderer.prototype.createSubsetContent = function(subElemId, subObj) {
 	return editor;
 };
 
-//Think about changing the name of this...doesnt sit right
-SubsetGuiRenderer.prototype.addSubsetToGroup = function(subGroupObj, subObj) {
-	var subGroupContElem, lastElem, idNum;
-	subGroupContElem = document.getElementById(subGroupObj.fileName + SUBSET_GROUP_CONTENT_ID_SUFFIX);
-	if(!subGroupContElem){
-		document.body.appendChild(this.createSubsetGroupElement(subGroupObj));
-		subGroupContElem = document.getElementById(subGroupObj.fileName + SUBSET_GROUP_CONTENT_ID_SUFFIX);
-	}
-	else{
-		lastElem = subGroupContElem.lastChild;
-		lastElem.className = lastElem.className.replace(SUBSET_LAST_CLASS_SUFFIX, '');
-	}
-	idNum = subGroupContElem.childElementCount;
-	subGroupContElem.appendChild(
-		this.createSubsetElement(
-			subObj,
-			true,
-			idNum			
-		)
-	);
-
-	subObj.editor = this.createSubsetContent(
-		idNum + '-' + subObj.fileName + SUBSET_EDITOR_ID_SUFFIX, 
-		subObj
-	);
-};
-
 ///////////////////////
-// SubsetDataManager //
+// SubsetModel //
 ///////////////////////
 
-SubsetDataManager = function(){
+var SubsetModel = function(){
 
 };
 
-SubsetDataManager.prototype.registerGroup = function(subGroupObj) {
-	// body...
-};
-
-SubsetDataManager.prototype.addSubsetToGroup = function(subObj) {
+SubsetModel.prototype.addSubset = function(subObj) {
 	// body...
 };
 
@@ -221,7 +180,7 @@ SubsetDataManager.prototype.addSubsetToGroup = function(subObj) {
 // Subset  //
 /////////////
 
-Subset = function(initObj){
+var Subset = function(initObj){
 	this.editor = null;
 	this.codeSubset = initObj.codeSubset? initObj.codeSubset : ''; 
 };
@@ -230,21 +189,23 @@ Subset = function(initObj){
 // SubsetGroup //
 /////////////////
 
-SubsetGroup = function(initObj){
+var SubsetGroup = function(initObj){
 	this.fileName = initObj.fileName? initObj.fileName : '';
+  this.subsets = [];
 };
 
 /////////////////
 // SmartSocket //
 /////////////////
 
-SmartSocket = function(domainStr, portStr, opt_path){
+var SmartSocket = function(domainStr, portStr, opt_path, model){
 	var path = opt_path ? opt_path : '';
 	this.socket = new WebSocket(
 		'ws://' + domainStr + ":" + portStr + path
 	);
 	this.registeredListeners = {};
 	this.socket.onmessage = this.onmessage.bind(this);
+  this.model = model;
 };
 
 SmartSocket.prototype.on = function(type, cb) {
@@ -278,9 +239,24 @@ SmartSocket.prototype.emit = function(type, message) {
 	}));
 };
 
-//Need to index groups for later lookup
-var renderer = new SubsetGuiRenderer(),
-	group   = {fileName : 'trial.txt'},
+/////////////////
+//  SubsetApp  //
+/////////////////
+
+var SubsetApp = function(){
+  this.renderer = new SubsetRenderer();
+  this.model    = new SubsetModel();
+  this.socket   = new SmartSocket('localhost', 8001, '/socket', this.model);
+}
+
+SubsetApp.prototype.registerSocketListener = function(event, handler) {
+  this.socket.on(event, handler.bind(this.socket));
+};
+
+/**
+ * TESTING
+ */
+var group = {fileName : 'trial.txt'},
 	subsets = [{
 		fileName : '1.txt',
 		codeSubset : "function quantify_(sifter){\n\tif(sifter.infinite_){\n\t\tsifter.regEx_ += sifter.infinite_;\n\t\tsifter.infinite_ = null;\n\t}\n\telse if(sifter.atLeastOne_){\n\t\tsifter.regEx_ += sifter.atLeastOne_;\n\t\tsifter.atLeastOne_ = null;\n\t}\n\telse if(sifter.zeroOrOne_){\n\t\tsifter.regEx_ += sifter.zeroOrOne_;\n\t\tsifter.zeroOrOne_ = null;\n\t}\n\telse if(sifter.exactly_){\n\t\tsifter.regEx_ += '{' + sifter.exactly_ + '}';\n\t\tsifter.exactly_ = null;\n\t}\n\telse if(sifter.between_){\n\t\tsifter.regEx_ += '{' + sifter.between_.start_ +\n\t\t\t',' + sifter.between_.end_ + '}';\n\t\tsifter.between_ = null;\n\t}\n}"
@@ -289,26 +265,19 @@ var renderer = new SubsetGuiRenderer(),
 		fileName : '2.txt',
 		codeSubset : "Sifter.prototype.captures = function(expFunc, name, autoRegister) {\n\tif(typeof expFunc !== 'function'){\n\t\tthrow 'captures() arguments must be of type \"function\".';\n\t}\n\tvar exp;\n\tthis.captured.push(name);\n\texp = resolveExp_(expFunc);\n\tthis.regEx_ += '(' + exp + ')';\n\tquantify_(this);\n\tif(autoRegister){\n\t\tthis.registerNamedCapture(name, exp);\n\t}\n\treturn this;\n};"
 	}];
-for(var i = 0; i < subsets.length; i++){
-	renderer.addSubsetToGroup(group, subsets[i]);
-}
 
-
-socket = new SmartSocket('localhost', 8001, '/socket');
-socket.on('trial', function(data){
-	console.log(data);
+Subset = new SubsetApp();
+Subset.renderer.hardRender({
+    'subsets' : subsets
 });
-// 	message = JSON.stringify({ type:'fucking', data : 'muh cock' });
-// socket.on('fucking', function(jizm){
-// 	console.log('she put the ' + jizm + ' in her mouth');
-// });
 
-// socket.on('fucking', function(jizm){
-// 	console.log('she also put ' + jizm + ' in her pussy');
-// });
-// socket.onmessage(message);
-// console.log(socket);
-// console.log('hj');
-// document.body.appendChild(sg);
-	
+Subset.registerSocketListener('trial', function(data){
+  console.log(data);
+})
+
+Subset.registerSocketListener('new-subset', function(data){
+  console.log(data);
+})
+
+
 }
