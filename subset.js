@@ -54,6 +54,10 @@ makeHuggable = function(editor){
 	hug();
 	editor.renderer.$gutterLayer._eventRegistry.changeGutterWidth.push(hug);
 	editor.getSession().on('change', hug);
+},
+
+xtends = function(ctx, zuper){
+  ctx.__proto__.__proto__ = new zuper();
 };
 
 ///////////////////////
@@ -165,10 +169,11 @@ SubsetRenderer.prototype.createSubsetContent = function(subElemId, subObj) {
 };
 
 ///////////////////////
-// SubsetModel //
+// SubsetModel       //
 ///////////////////////
 
 var SubsetModel = function(){
+  xtends(this, EventEmitter);
 
 };
 
@@ -194,27 +199,62 @@ var SubsetGroup = function(initObj){
   this.subsets = [];
 };
 
+//////////////////
+// EventEmitter //
+//////////////////
+var EventEmitter = function(){
+  this.registeredListeners = {};
+};
+
+EventEmitter.prototype.on = function(type, cb, optCtx) {
+  if(this.registeredListeners.hasOwnProperty(type)){
+    this.registeredListeners[type].push(
+      optCtx ? cb.bind(optCtx) : cb
+    );
+    return;
+  }
+  this.registeredListeners[type] = [];
+  this.registeredListeners[type].push(
+    optCtx ? cb.bind(optCtx) : cb
+  );
+};
+
+EventEmitter.prototype.off = function(type, cb, optCtx) {
+  var target, handlers;
+  target = optCtx ? cb.bind(optCtx) : cb;
+  if(this.registeredListeners.hasOwnProperty(type)){
+    handlers = this.registeredListeners[type];
+    for(var i = 0; i < handlers.length; i ++){
+      if(handlers[i] == target){
+        handlers.splice(i, 1);
+      }
+    }
+  }
+};
+
+EventEmitter.prototype.emit = function(type, data) {
+  var handlers;
+  if(this.registeredListeners.hasOwnProperty(type)){
+    handlers = this.registeredListeners[type];
+    for(var i = 0; i < handlers.length; i ++){
+      handlers[i](data);
+    }
+  }
+};
+
+// EventEmitter.prototype.registeredListeners = {};
+
 /////////////////
 // SmartSocket //
 /////////////////
 
-var SmartSocket = function(domainStr, portStr, opt_path, model){
+var SmartSocket = function(domainStr, portStr, opt_path){
+  xtends(this, EventEmitter);
 	var path = opt_path ? opt_path : '';
 	this.socket = new WebSocket(
 		'ws://' + domainStr + ":" + portStr + path
 	);
-	this.registeredListeners = {};
 	this.socket.onmessage = this.onmessage.bind(this);
-  this.model = model;
-};
-
-SmartSocket.prototype.on = function(type, cb) {
-	if(this.registeredListeners.hasOwnProperty(type)){
-		this.registeredListeners[type].push(cb);
-		return;
-	}
-	this.registeredListeners[type] = [];
-	this.registeredListeners[type].push(cb);
 };
 
 SmartSocket.prototype.onmessage = function(message){
@@ -243,14 +283,14 @@ SmartSocket.prototype.emit = function(type, message) {
 //  SubsetApp  //
 /////////////////
 
-var SubsetApp = function(){
+SubsetApp = function(){
   this.renderer = new SubsetRenderer();
   this.model    = new SubsetModel();
-  this.socket   = new SmartSocket('localhost', 8001, '/socket', this.model);
+  this.socket   = new SmartSocket('localhost', 8001, '/socket');
 }
 
 SubsetApp.prototype.registerSocketListener = function(event, handler) {
-  this.socket.on(event, handler.bind(this.socket));
+  this.socket.on(event, handler, this);
 };
 
 /**
@@ -272,12 +312,11 @@ Subset.renderer.hardRender({
 });
 
 Subset.registerSocketListener('trial', function(data){
-  console.log(data);
-})
+  console.log('from trial event: ' + data);
+});
 
 Subset.registerSocketListener('new-subset', function(data){
   console.log(data);
-})
-
+});
 
 }
