@@ -208,36 +208,47 @@ var EventEmitter = function(){
 
 EventEmitter.prototype.on = function(type, cb, optCtx) {
   if(this.registeredListeners.hasOwnProperty(type)){
-    this.registeredListeners[type].push(
-      optCtx ? cb.bind(optCtx) : cb
-    );
+    this.registeredListeners[type].push({
+      'context' : (optCtx ? optCtx : this),
+      'handler' : cb 
+    });
     return;
   }
   this.registeredListeners[type] = [];
-  this.registeredListeners[type].push(
-    optCtx ? cb.bind(optCtx) : cb
-  );
+  this.registeredListeners[type].push({
+      'context' : (optCtx ? optCtx : this),
+      'handler' : cb 
+  });
 };
 
 EventEmitter.prototype.off = function(type, cb, optCtx) {
-  var target, handlers;
-  target = optCtx ? cb.bind(optCtx) : cb;
+  var handlers;
+  optCtx = optCtx ? optCtx : this;
   if(this.registeredListeners.hasOwnProperty(type)){
+    if(!cb){
+      delete this.registeredListeners[type];
+      return;
+    }
     handlers = this.registeredListeners[type];
     for(var i = 0; i < handlers.length; i ++){
-      if(handlers[i] == target){
+      if(handlers[i].context == optCtx && handlers[i].handler == cb){
         handlers.splice(i, 1);
+        break;
       }
+    }
+    if(handlers.length == 0){
+      delete this.registeredListeners[type];
     }
   }
 };
 
 EventEmitter.prototype.emit = function(type, data) {
-  var handlers;
+  var handlers, evnt;
   if(this.registeredListeners.hasOwnProperty(type)){
     handlers = this.registeredListeners[type];
     for(var i = 0; i < handlers.length; i ++){
-      handlers[i](data);
+      evnt = handlers[i];
+      evnt.handler.call(evnt.context, data);
     }
   }
 };
@@ -258,14 +269,15 @@ var SmartSocket = function(domainStr, portStr, opt_path){
 };
 
 SmartSocket.prototype.onmessage = function(message){
-	var parsedMsg;
+	var parsedMsg, evnt;
 
 	parsedMsg = JSON.parse(message.data);
 
 	if(this.registeredListeners.hasOwnProperty(parsedMsg.type)){
 		var callbacks = this.registeredListeners[parsedMsg.type];
 		for(var i = 0; i < callbacks.length; i++){
-			callbacks[i](parsedMsg.message);
+      evnt = callbacks[i];
+      evnt.handler.call(evnt.context, parsedMsg.message);
 		}
 		return;
 	}
@@ -293,6 +305,10 @@ SubsetApp.prototype.registerSocketListener = function(event, handler) {
   this.socket.on(event, handler, this);
 };
 
+SubsetApp.prototype.unregisterSocketListener = function(event, handler) {
+  this.socket.off(event, handler, this);
+};
+
 /**
  * TESTING
  */
@@ -313,10 +329,22 @@ Subset.renderer.hardRender({
 
 Subset.registerSocketListener('trial', function(data){
   console.log('from trial event: ' + data);
+  console.log(this);
 });
 
-Subset.registerSocketListener('new-subset', function(data){
+var newsubset = function(data){
   console.log(data);
-});
+};
+
+Subset.registerSocketListener('new-subset', newsubset);
+Subset.registerSocketListener('new-subset', function(){});
+
+Subset.unregisterSocketListener('new-subset', newsubset);
+
+//create model with event hooks...write out project spec for sanity
+//make LayoutManager for the renderer
+  //comeup with algorithm for placing subsets in different spots...what happens when they overun eachother when you are editing them?
+//dynamically change outline colors
+
 
 }
