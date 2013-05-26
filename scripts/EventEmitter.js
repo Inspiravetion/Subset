@@ -1,7 +1,4 @@
-//////////////////
-// EventEmitter //
-//////////////////
-EventEmitter = function(){
+var EventEmitter = function(){
   this.registeredListeners = {};
 };
 
