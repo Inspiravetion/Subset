@@ -48,16 +48,13 @@ makeHuggable = function(editor){
     }
 
     if(resize){
+      //call packery only here so that it only rerenders on size change
     	editor.resize();
     }
 	}
 	hug();
 	editor.renderer.$gutterLayer._eventRegistry.changeGutterWidth.push(hug);
 	editor.getSession().on('change', hug);
-},
-
-xtends = function(ctx, zuper){
-  ctx.__proto__.__proto__ = new zuper();
 };
 
 ///////////////////////
@@ -173,12 +170,17 @@ SubsetRenderer.prototype.createSubsetContent = function(subElemId, subObj) {
 ///////////////////////
 
 var SubsetModel = function(){
-  xtends(this, EventEmitter);
-
-};
+  this.super();
+}.extends(EventEmitter);
 
 SubsetModel.prototype.addSubset = function(subObj) {
 	// body...
+  this.emit('new_subset', subObj); 
+};
+
+SubsetModel.prototype.saveSubset = function(id, newValue) {
+  // body...
+  this.emit('save_subset', id);
 };
 
 /////////////
@@ -186,8 +188,17 @@ SubsetModel.prototype.addSubset = function(subObj) {
 /////////////
 
 var Subset = function(initObj){
+  //set by gui
 	this.editor = null;
-	this.codeSubset = initObj.codeSubset? initObj.codeSubset : ''; 
+  this.offset = 0;
+
+  //sent from server
+  this.fileName = '';
+	this.codeSubset = '';
+  this.startLength = 0;
+  this.buffIndex = 0;
+
+  this.consume(initObj);
 };
 
 /////////////////
@@ -195,78 +206,23 @@ var Subset = function(initObj){
 /////////////////
 
 var SubsetGroup = function(initObj){
-	this.fileName = initObj.fileName? initObj.fileName : '';
+	this.fileName = '';
   this.subsets = [];
+  this.consume(initObj);
 };
-
-//////////////////
-// EventEmitter //
-//////////////////
-var EventEmitter = function(){
-  this.registeredListeners = {};
-};
-
-EventEmitter.prototype.on = function(type, cb, optCtx) {
-  if(this.registeredListeners.hasOwnProperty(type)){
-    this.registeredListeners[type].push({
-      'context' : (optCtx ? optCtx : this),
-      'handler' : cb 
-    });
-    return;
-  }
-  this.registeredListeners[type] = [];
-  this.registeredListeners[type].push({
-      'context' : (optCtx ? optCtx : this),
-      'handler' : cb 
-  });
-};
-
-EventEmitter.prototype.off = function(type, cb, optCtx) {
-  var handlers;
-  optCtx = optCtx ? optCtx : this;
-  if(this.registeredListeners.hasOwnProperty(type)){
-    if(!cb){
-      delete this.registeredListeners[type];
-      return;
-    }
-    handlers = this.registeredListeners[type];
-    for(var i = 0; i < handlers.length; i ++){
-      if(handlers[i].context == optCtx && handlers[i].handler == cb){
-        handlers.splice(i, 1);
-        break;
-      }
-    }
-    if(handlers.length == 0){
-      delete this.registeredListeners[type];
-    }
-  }
-};
-
-EventEmitter.prototype.emit = function(type, data) {
-  var handlers, evnt;
-  if(this.registeredListeners.hasOwnProperty(type)){
-    handlers = this.registeredListeners[type];
-    for(var i = 0; i < handlers.length; i ++){
-      evnt = handlers[i];
-      evnt.handler.call(evnt.context, data);
-    }
-  }
-};
-
-// EventEmitter.prototype.registeredListeners = {};
 
 /////////////////
 // SmartSocket //
 /////////////////
 
 var SmartSocket = function(domainStr, portStr, opt_path){
-  xtends(this, EventEmitter);
+  this.super();
 	var path = opt_path ? opt_path : '';
 	this.socket = new WebSocket(
 		'ws://' + domainStr + ":" + portStr + path
 	);
 	this.socket.onmessage = this.onmessage.bind(this);
-};
+}.extends(EventEmitter);
 
 SmartSocket.prototype.onmessage = function(message){
 	var parsedMsg, evnt;
@@ -340,6 +296,7 @@ Subset.registerSocketListener('new-subset', newsubset);
 Subset.registerSocketListener('new-subset', function(){});
 
 Subset.unregisterSocketListener('new-subset', newsubset);
+
 
 //create model with event hooks...write out project spec for sanity
 //make LayoutManager for the renderer
