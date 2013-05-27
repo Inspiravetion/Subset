@@ -92,8 +92,12 @@ SubsetRenderer.prototype.renderSingle = function(subObj, idNum){
   );
 };
 
-SubsetRenderer.prototype.removeSingle = function(subObj){
-  document.body.removeChild(document.getElementById(subObj.idNum + SUBSET_ID_SUFFIX));
+SubsetRenderer.prototype.removeSingle = function(subIdNum){
+  document.body.removeChild(
+    document.getElementById(
+      subIdNum + SUBSET_ID_SUFFIX
+    )
+  );
 };
 
 SubsetRenderer.prototype.RenderSubsetElement = function(subObj, last, subNumber) {
@@ -186,20 +190,26 @@ SubsetRenderer.prototype.createSubsetContent = function(subElemId, subObj) {
 var SubsetModel = function(){
   this.super();
   this.groups = {};
+  this.subToGroupIndex = {};
+  this.idCount = 0;
 }.extends(EventEmitter);
 
 SubsetModel.prototype.addSubset = function(subObj) {
 	var groupName = subObj.fileName;
+  this.idCount++;
   if(!this.groups[groupName]){
     this.groups[groupName] = new SubsetGroup(groupName);
   }
   this.groups[groupName].addSubset(subObj);
+  this.subToGroupIndex[this.idCount] = groupName;
   this.emit('add_subset', subObj); 
 };
-
-SubsetModel.prototype.removeSubset = function(subObj){
-
-  this.emit('remove_subset', subObj);
+  
+SubsetModel.prototype.removeSubset = function(subIdNum){
+  var groupName = this.subToGroupIndex[subIdNum];
+  delete this.subToGroupIndex[subIdNum];
+  this.groups[groupName].removeSubset(subIdNum);
+  this.emit('remove_subset', subIdNum);
 }
 
 // SubsetModel.prototype.saveSubset = function(id, newValue) {
@@ -228,8 +238,6 @@ var Subset = function(initObj){
   this.buffIndex = 0;
 
   this.consume(initObj);
-  console.log('from Subset(): ');
-  console.log(this);
 };
 
 /////////////////
@@ -239,12 +247,10 @@ var Subset = function(initObj){
 var SubsetGroup = function(fileName){
 	this.fileName = fileName;
   this.subsets = [];
-  this.idCount = 0;
 };
 
 SubsetGroup.prototype.addSubset = function(subObj){
   this.subsets.push(subObj);
-  this.idCount++;
   this.subsets.sort(function(curr, next){
     if(curr.buffIndex < next.buffIndex){
       return 1;
@@ -254,8 +260,15 @@ SubsetGroup.prototype.addSubset = function(subObj){
     }
     return 0;
   });
-  console.log('From group():');
-  console.log(this);
+};
+
+SubsetGroup.prototype.removeSubset = function(subIdNum){
+  for (var i = 0; i < this.subsets.length; i ++){
+    if(subIdNum == this.subsets[i].idNum){
+      this.subsets.splice(i, 1);
+      return;
+    }
+  }
 };
 
 /////////////////
@@ -281,11 +294,11 @@ SubsetApp.prototype.setupRenderModelListeners = function(rend, model){
   
   model.on('add_subset', function(subObj){
     var group = model.getSubsetGroup(subObj.fileName);
-    rend.renderSingle(subObj, group.idCount);
+    rend.renderSingle(subObj, model.idCount);
   });
 
-  model.on('remove_subset', function(subObj){
-    rend.removeSingle(subObj);
+  model.on('remove_subset', function(subIdNum){
+    rend.removeSingle(subIdNum);
   });
 }
 
@@ -293,7 +306,7 @@ SubsetApp.prototype.setupRenderModelListeners = function(rend, model){
  * TESTING
  */
 var group = {fileName : 'trial.txt'},
-	subsets = [{
+	mockSubsets = [{
 		fileName : '1.txt',
     buffIndex : 32,
 		codeSubset : "function quantify_(sifter){\n\tif(sifter.infinite_){\n\t\tsifter.regEx_ += sifter.infinite_;\n\t\tsifter.infinite_ = null;\n\t}\n\telse if(sifter.atLeastOne_){\n\t\tsifter.regEx_ += sifter.atLeastOne_;\n\t\tsifter.atLeastOne_ = null;\n\t}\n\telse if(sifter.zeroOrOne_){\n\t\tsifter.regEx_ += sifter.zeroOrOne_;\n\t\tsifter.zeroOrOne_ = null;\n\t}\n\telse if(sifter.exactly_){\n\t\tsifter.regEx_ += '{' + sifter.exactly_ + '}';\n\t\tsifter.exactly_ = null;\n\t}\n\telse if(sifter.between_){\n\t\tsifter.regEx_ += '{' + sifter.between_.start_ +\n\t\t\t',' + sifter.between_.end_ + '}';\n\t\tsifter.between_ = null;\n\t}\n}"
@@ -309,18 +322,15 @@ var group = {fileName : 'trial.txt'},
     codeSubset : "function quantify_(sifter){\n\tif(sifter.infinite_){\n\t\tsifter.regEx_ += sifter.infinite_;\n\t\tsifter.infinite_ = null;\n\t}\n\telse if(sifter.atLeastOne_){\n\t\tsifter.regEx_ += sifter.atLeastOne_;\n\t\tsifter.atLeastOne_ = null;\n\t}\n\telse if(sifter.zeroOrOne_){\n\t\tsifter.regEx_ += sifter.zeroOrOne_;\n\t\tsifter.zeroOrOne_ = null;\n\t}\n\telse if(sifter.exactly_){\n\t\tsifter.regEx_ += '{' + sifter.exactly_ + '}';\n\t\tsifter.exactly_ = null;\n\t}\n\telse if(sifter.between_){\n\t\tsifter.regEx_ += '{' + sifter.between_.start_ +\n\t\t\t',' + sifter.between_.end_ + '}';\n\t\tsifter.between_ = null;\n\t}\n}"
   }];
 
-var saved = [];
-
 app = new SubsetApp();
 
-for (var i = 0; i < subsets.length; i++){
-  var sub = new Subset(subsets[i]);
-  saved.push(sub);
+for (var i = 0; i < mockSubsets.length; i++){
+  var sub = new Subset(mockSubsets[i]);
   app.model.addSubset(sub);
 }
 
 setTimeout(function(){
-  app.model.removeSubset(saved[0]);
+  app.model.removeSubset('1');
 }, 3000);
 
 app.registerSocketListener('trial', function(data){
@@ -338,7 +348,6 @@ app.registerSocketListener('new-subset', function(){});
 app.unregisterSocketListener('new-subset', newsubset);
 
 
-//create model with event hooks...write out project spec for sanity
 //make LayoutManager for the renderer
   //comeup with algorithm for placing subsets in different spots...what happens when they overun eachother when you are editing them?
 //dynamically change outline colors
