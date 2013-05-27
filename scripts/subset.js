@@ -84,6 +84,18 @@ SubsetRenderer.prototype.hardRender = function(model){
   }
 }
 
+SubsetRenderer.prototype.renderSingle = function(subObj, idNum){
+  this.RenderSubsetElement(
+    subObj,
+    false,
+    idNum
+  );
+};
+
+SubsetRenderer.prototype.removeSingle = function(subObj){
+  document.body.removeChild(document.getElementById(subObj.idNum + SUBSET_ID_SUFFIX));
+};
+
 SubsetRenderer.prototype.RenderSubsetElement = function(subObj, last, subNumber) {
 	var subElem, buttonGroup, subsetEditor;
 	subElem = make(
@@ -117,6 +129,8 @@ SubsetRenderer.prototype.RenderSubsetElement = function(subObj, last, subNumber)
     subNumber + '-' + subObj.fileName + SUBSET_EDITOR_ID_SUFFIX, 
     subObj
   );
+
+  subObj.idNum = subNumber;
 };
 
 SubsetRenderer.prototype.createButtonGroup = function(groupClass, id, labels) {
@@ -171,16 +185,30 @@ SubsetRenderer.prototype.createSubsetContent = function(subElemId, subObj) {
 
 var SubsetModel = function(){
   this.super();
+  this.groups = {};
 }.extends(EventEmitter);
 
 SubsetModel.prototype.addSubset = function(subObj) {
-	// body...
-  this.emit('new_subset', subObj); 
+	var groupName = subObj.fileName;
+  if(!this.groups[groupName]){
+    this.groups[groupName] = new SubsetGroup(groupName);
+  }
+  this.groups[groupName].addSubset(subObj);
+  this.emit('add_subset', subObj); 
 };
 
-SubsetModel.prototype.saveSubset = function(id, newValue) {
-  // body...
-  this.emit('save_subset', id);
+SubsetModel.prototype.removeSubset = function(subObj){
+
+  this.emit('remove_subset', subObj);
+}
+
+// SubsetModel.prototype.saveSubset = function(id, newValue) {
+//   // body...
+//   this.emit('save_subset', id);
+// };
+
+SubsetModel.prototype.getSubsetGroup = function(fileName){
+  return this.groups[fileName];
 };
 
 /////////////
@@ -191,6 +219,7 @@ var Subset = function(initObj){
   //set by gui
 	this.editor = null;
   this.offset = 0;
+  this.idNum  = 0;
 
   //sent from server
   this.fileName = '';
@@ -199,16 +228,34 @@ var Subset = function(initObj){
   this.buffIndex = 0;
 
   this.consume(initObj);
+  console.log('from Subset(): ');
+  console.log(this);
 };
 
 /////////////////
 // SubsetGroup //
 /////////////////
 
-var SubsetGroup = function(initObj){
-	this.fileName = '';
+var SubsetGroup = function(fileName){
+	this.fileName = fileName;
   this.subsets = [];
-  this.consume(initObj);
+  this.idCount = 0;
+};
+
+SubsetGroup.prototype.addSubset = function(subObj){
+  this.subsets.push(subObj);
+  this.idCount++;
+  this.subsets.sort(function(curr, next){
+    if(curr.buffIndex < next.buffIndex){
+      return 1;
+    }
+    else if(curr.buffIndex > next.buffIndex){
+      return -1;
+    }
+    return 0;
+  });
+  console.log('From group():');
+  console.log(this);
 };
 
 /////////////////
@@ -219,6 +266,7 @@ SubsetApp = function(){
   this.renderer = new SubsetRenderer();
   this.model    = new SubsetModel();
   this.socket   = new SmartSocket('localhost', 8001, '/socket');
+  this.setupRenderModelListeners(this.renderer, this.model);
 }
 
 SubsetApp.prototype.registerSocketListener = function(event, handler) {
@@ -229,25 +277,53 @@ SubsetApp.prototype.unregisterSocketListener = function(event, handler) {
   this.socket.off(event, handler, this);
 };
 
+SubsetApp.prototype.setupRenderModelListeners = function(rend, model){
+  
+  model.on('add_subset', function(subObj){
+    var group = model.getSubsetGroup(subObj.fileName);
+    rend.renderSingle(subObj, group.idCount);
+  });
+
+  model.on('remove_subset', function(subObj){
+    rend.removeSingle(subObj);
+  });
+}
+
 /**
  * TESTING
  */
 var group = {fileName : 'trial.txt'},
 	subsets = [{
 		fileName : '1.txt',
+    buffIndex : 32,
 		codeSubset : "function quantify_(sifter){\n\tif(sifter.infinite_){\n\t\tsifter.regEx_ += sifter.infinite_;\n\t\tsifter.infinite_ = null;\n\t}\n\telse if(sifter.atLeastOne_){\n\t\tsifter.regEx_ += sifter.atLeastOne_;\n\t\tsifter.atLeastOne_ = null;\n\t}\n\telse if(sifter.zeroOrOne_){\n\t\tsifter.regEx_ += sifter.zeroOrOne_;\n\t\tsifter.zeroOrOne_ = null;\n\t}\n\telse if(sifter.exactly_){\n\t\tsifter.regEx_ += '{' + sifter.exactly_ + '}';\n\t\tsifter.exactly_ = null;\n\t}\n\telse if(sifter.between_){\n\t\tsifter.regEx_ += '{' + sifter.between_.start_ +\n\t\t\t',' + sifter.between_.end_ + '}';\n\t\tsifter.between_ = null;\n\t}\n}"
 	},
 	{
-		fileName : '2.txt',
+		fileName : '1.txt',
+    buffIndex : 64,
 		codeSubset : "Sifter.prototype.captures = function(expFunc, name, autoRegister) {\n\tif(typeof expFunc !== 'function'){\n\t\tthrow 'captures() arguments must be of type \"function\".';\n\t}\n\tvar exp;\n\tthis.captured.push(name);\n\texp = resolveExp_(expFunc);\n\tthis.regEx_ += '(' + exp + ')';\n\tquantify_(this);\n\tif(autoRegister){\n\t\tthis.registerNamedCapture(name, exp);\n\t}\n\treturn this;\n};"
-	}];
+	},
+  {
+    fileName : '1.txt',
+    buffIndex : 32,
+    codeSubset : "function quantify_(sifter){\n\tif(sifter.infinite_){\n\t\tsifter.regEx_ += sifter.infinite_;\n\t\tsifter.infinite_ = null;\n\t}\n\telse if(sifter.atLeastOne_){\n\t\tsifter.regEx_ += sifter.atLeastOne_;\n\t\tsifter.atLeastOne_ = null;\n\t}\n\telse if(sifter.zeroOrOne_){\n\t\tsifter.regEx_ += sifter.zeroOrOne_;\n\t\tsifter.zeroOrOne_ = null;\n\t}\n\telse if(sifter.exactly_){\n\t\tsifter.regEx_ += '{' + sifter.exactly_ + '}';\n\t\tsifter.exactly_ = null;\n\t}\n\telse if(sifter.between_){\n\t\tsifter.regEx_ += '{' + sifter.between_.start_ +\n\t\t\t',' + sifter.between_.end_ + '}';\n\t\tsifter.between_ = null;\n\t}\n}"
+  }];
 
-Subset = new SubsetApp();
-Subset.renderer.hardRender({
-    'subsets' : subsets
-});
+var saved = [];
 
-Subset.registerSocketListener('trial', function(data){
+app = new SubsetApp();
+
+for (var i = 0; i < subsets.length; i++){
+  var sub = new Subset(subsets[i]);
+  saved.push(sub);
+  app.model.addSubset(sub);
+}
+
+setTimeout(function(){
+  app.model.removeSubset(saved[0]);
+}, 3000);
+
+app.registerSocketListener('trial', function(data){
   console.log('from trial event: ' + data);
   console.log(this);
 });
@@ -256,10 +332,10 @@ var newsubset = function(data){
   console.log(data);
 };
 
-Subset.registerSocketListener('new-subset', newsubset);
-Subset.registerSocketListener('new-subset', function(){});
+app.registerSocketListener('new-subset', newsubset);
+app.registerSocketListener('new-subset', function(){});
 
-Subset.unregisterSocketListener('new-subset', newsubset);
+app.unregisterSocketListener('new-subset', newsubset);
 
 
 //create model with event hooks...write out project spec for sanity
