@@ -1,12 +1,12 @@
 @font-face {
   font-family: subset-code;
   font-style: regular;
-  src: url('/SourceCodePro-Regular.ttf');
+  src: url('../fonts/SourceCodePro-Regular.ttf');
 }
 
 @font-face {
   font-family: subset-code-bold;
-  src: url('/SourceCodePro-Bold.ttf');
+  src: url('../fonts/SourceCodePro-Bold.ttf');
 }
 
 .ace_keyword {
